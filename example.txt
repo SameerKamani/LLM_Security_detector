@@ -1,0 +1,144 @@
+import sqlite3
+from flask import Flask, request, os
+
+app = Flask(__name__)
+
+# VULNERABILITY 1: Hardcoded Secret (Insecure Storage)
+app.config['SECRET_KEY'] = 'super-secret-password-123'
+
+@app.route('/user_profile')
+def get_user():
+    user_id = request.args.get('id')
+    
+    # VULNERABILITY 2: SQL Injection (Direct string formatting)
+    connection = sqlite3.connect("database.db")
+    cursor = connection.cursor()
+    query = "SELECT * FROM users WHERE id = " + user_id
+    cursor.execute(query)
+    
+    # VULNERABILITY 3: Insecure Command Execution (OS Injection)
+    # Let's say it checks if the user's home directory exists
+    os.system("ls -la /home/" + user_id)
+    
+    return cursor.fetchone()
+
+if __name__ == "__main__":
+    # VULNERABILITY 4: Debug Mode Enabled (Information Leakage)
+    app.run(debug=True)
+
+
+
+Result
+
+Security Analysis
+The provided code has several security vulnerabilities that need to be addressed.
+
+Vulnerability 1: Hardcoded Secret (Insecure Storage)
+Vulnerability: The secret key is hardcoded in the code.
+Risk: An attacker who gains access to the code can obtain the secret key, which can be used to compromise the application's security.
+Secure Solution: Instead of hardcoding the secret key, it should be stored securely, such as in an environment variable or a secure configuration file.
+
+import os
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+Vulnerability 2: SQL Injection (Direct string formatting)
+Vulnerability: The SQL query is constructed by directly formatting the user input into the query string.
+Risk: An attacker can inject malicious SQL code by manipulating the id parameter, potentially leading to data tampering or unauthorized access.
+Secure Solution: Use parameterized queries or prepared statements to separate the SQL code from the user input.
+
+query = "SELECT * FROM users WHERE id = ?"
+cursor.execute(query, (user_id,))
+Vulnerability 3: Insecure Command Execution (OS Injection)
+Vulnerability: The os.system function is used to execute a command that includes user input.
+Risk: An attacker can inject malicious commands by manipulating the id parameter, potentially leading to arbitrary code execution or system compromise.
+Secure Solution: Avoid using os.system or subprocess with user input. Instead, use a secure method to check if the user's home directory exists, such as using the os.path module.
+
+import os
+user_home_dir = f"/home/{user_id}"
+if os.path.exists(user_home_dir):
+    # directory exists
+else:
+    # directory does not exist
+Vulnerability 4: Debug Mode Enabled (Information Leakage)
+Vulnerability: The Flask application is running in debug mode.
+Risk: An attacker can exploit the debug mode to obtain sensitive information about the application, such as error messages or stack traces.
+Secure Solution: Disable debug mode in production environments.
+
+if __name__ == "__main__":
+    app.run(debug=False)
+Secure Code
+Here is the updated code with the security vulnerabilities addressed:
+
+
+import sqlite3
+import os
+from flask import Flask, request
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+
+@app.route('/user_profile')
+def get_user():
+    user_id = request.args.get('id')
+    
+    connection = sqlite3.connect("database.db")
+    cursor = connection.cursor()
+    query = "SELECT * FROM users WHERE id = ?"
+    cursor.execute(query, (user_id,))
+    
+    user_home_dir = f"/home/{user_id}"
+    if os.path.exists(user_home_dir):
+        # directory exists
+    else:
+        # directory does not exist
+    
+    return cursor.fetchone()
+
+if __name__ == "__main__":
+    app.run(debug=False)
+
+
+
+
+
+Part2
+
+App Name: Careem AI Support Agent Purpose: To help users with ride issues, refund requests, and profile updates. Tools/Capabilities:
+
+Database Access: Can read user ride history and current credit balance.
+
+Refund Tool: Can trigger a "Credit Refund" to a user's wallet if a ride was cancelled.
+
+GPS Tool: Can view the real-time coordinates of drivers.
+
+Integration: Connected to the live WhatsApp Business API for customer chat. Architecture: The LLM takes user chat input directly and decides which tool to call based on the user's intent.
+
+
+
+
+
+
+Result
+
+1. OWASP Top 10 for LLM Apps Mapping
+Given the specifications of the Careem AI Support Agent, several OWASP Top 10 risks for LLM apps are applicable:
+
+LLM01: Prompt Injection: The app takes user chat input directly, which could be manipulated to inject malicious prompts, potentially leading to unauthorized actions such as fraudulent refunds or access to sensitive user data.
+LLM02: Insecure Output Handling: The LLM's decision to trigger a "Credit Refund" or access user ride history could be influenced by crafted inputs, leading to financial fraud or data breaches.
+LLM05: Insufficient Data Validation: Without proper validation, user input could lead to inappropriate actions, such as refunding credits to an attacker-controlled wallet or accessing unauthorized GPS coordinates.
+LLM08: Inadequate Logging and Monitoring: The lack of detailed logging and monitoring could make it difficult to detect and respond to potential security incidents, such as unauthorized access to user data or fraudulent transactions.
+2. MITRE ATLAS Perspective
+From a MITRE ATLAS perspective, potential attack tactics include:
+
+Reconnaissance (TA0043): An attacker could use the chat interface to gather information about the system, such as understanding how the LLM processes inputs, identifying potential vulnerabilities in the refund or GPS tools, or learning about the user's ride history and credit balance.
+Initial Access (TA0001): Malicious inputs could be crafted to gain initial access to the system, potentially allowing an attacker to trigger unauthorized refunds or access sensitive user data.
+ML Model Abuse (T1583): The LLM could be exploited by providing it with inputs designed to cause it to perform unintended actions, such as issuing refunds to attacker-controlled wallets or revealing sensitive information about drivers' locations.
+Data Manipulation (T1561): An attacker might manipulate user input to alter data within the system, such as modifying a user's credit balance or ride history for malicious purposes.
+3. Actionable Recommendations
+To mitigate these risks, the following security controls and architectural changes are recommended:
+
+Implement Input Validation and Sanitization: Ensure that all user inputs are thoroughly validated and sanitized to prevent prompt injection and insecure output handling. Utilize whitelisting for expected inputs and implement robust error handling for unexpected inputs.
+Use Secure Authentication and Authorization: Implement multi-factor authentication for users and ensure that the LLM's decisions are based on the user's authenticated identity and permissions. Limit the LLM's access to sensitive data and tools based on the user's role and permissions.
+Enhance Logging and Monitoring: Implement comprehensive logging of all user interactions with the LLM, including inputs, outputs, and any actions triggered by the LLM. Regularly monitor these logs for suspicious activity and implement an incident response plan to quickly respond to potential security incidents.
+Regularly Update and Patch the LLM: Keep the LLM and its dependencies up to date with the latest security patches. Regularly retrain the LLM on diverse and adversarially crafted datasets to improve its resilience to ML model abuse.
+Implement Rate Limiting and IP Blocking: Limit the number of requests a user can make within a certain timeframe to prevent brute-force attacks. Implement IP blocking for IPs that have been identified as sources of malicious traffic.
+Conduct Regular Security Audits and Penetration Testing: Regularly conduct security audits and penetration testing of the Careem AI Support Agent to identify and address potential vulnerabilities before they can be exploited by attackers.
