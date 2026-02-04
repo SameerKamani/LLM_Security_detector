@@ -1,6 +1,4 @@
----
-
-# 🛡️ LLM Security Helper
+# LLM Security Helper
 
 An AI-powered security auditing tool built for the **Careem Helpbot** ecosystem (and beyond). This application leverages the **Groq API** (Llama-3 models) to perform two critical security functions:
 
